@@ -1,131 +1,81 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  ScrollView,
-  StatusBar,
-  StyleSheet,
+  Button,
+  NativeAppEventEmitter,
+  NativeEventEmitter,
+  PermissionsAndroid,
   Text,
-  useColorScheme,
   View,
+  Platform
 } from 'react-native';
+import { NativeModules } from 'react-native';
+import CustomTextView from './custom-components/CustomTextView';
+import CustomCameraView from './custom-components/CustomCameraPreview';
+const {RunServiceModule} = NativeModules
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
+const eventEmitter = new NativeEventEmitter(RunServiceModule)
 
 function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+  PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS).then((permissionStatus) => {
+    console.log(permissionStatus);
+  })
+  const [isPermissionAccepted, setIsPermissionAccepted] = useState(false)
+  const [isCameraRunning, setIsCameraRunning] = useState(false)
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
+  const callbackToRun = () => {
+    console.log("This is our trigged callback");
+  }
 
-  /*
-   * To keep the template simple and small we're adding padding to prevent view
-   * from rendering under the System UI.
-   * For bigger apps the recommendation is to use `react-native-safe-area-context`:
-   * https://github.com/AppAndFlow/react-native-safe-area-context
-   *
-   * You can read more about it here:
-   * https://github.com/react-native-community/discussions-and-proposals/discussions/827
-   */
-  const safePadding = '5%';
+  eventEmitter.addListener("trigger", (event) => {
+    callbackToRun()
+  })
+  const startServiceCallback = () => {
+    RunServiceModule.startService().then(((value: string) => {
+      console.log(value)
+    }))
+  }
+
+  const stopServiceCallback = () => {
+    RunServiceModule.stopService().then(((value: string) => {
+      console.log(value)
+    }))
+  }
+
+
+async function requestCameraPermission() {
+  if (Platform.OS === 'android' && Platform.Version >= 23) {
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.CAMERA,);
+      if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+        setIsPermissionAccepted(true)
+      } else {
+        console.log('Camera permission denied');
+      }
+    } catch (err) {
+      console.warn(err);
+    }
+  }
+}
+  useEffect(() => {
+    requestCameraPermission() 
+  }, [])
+
+  useEffect(() => {
+    if(isCameraRunning){
+      startServiceCallback()
+    }else {
+      stopServiceCallback()
+    }
+  }, [isCameraRunning])
 
   return (
-    <View style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        style={backgroundStyle}>
-        <View style={{paddingRight: safePadding}}>
-          <Header/>
-        </View>
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-            paddingHorizontal: safePadding,
-            paddingBottom: safePadding,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <View style={{gap: 8}}>
+      <CustomCameraView run={isCameraRunning} style={{width: '100%', height: 600}}/>
+      <Button title='Start' onPress={() => setIsCameraRunning((value) => true)}/>
+      <Button title='Stop' onPress={() => setIsCameraRunning((value) => false)}/>
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
 
 export default App;
